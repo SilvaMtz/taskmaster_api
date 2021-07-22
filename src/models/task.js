@@ -1,11 +1,10 @@
 const mongoose = require('mongoose');
-
+const TaskPriorityType = require('../db/schemas/task-priority');
+mongoose.Schema.Types.TaskPriorityType = TaskPriorityType;
 /**
  * TO DO: Add the following properties to the Task object:
- * 		- Tag (new model?) (you can create new tags)
  * 		- Category/column (new model?) (you can create new categories/columns)
  * 		- StartDateTime/EndDateTime
- * 		- Priority
  * 		- Location
  */
 
@@ -26,11 +25,26 @@ const taskSchema = new mongoose.Schema(
       required: true,
       default: false
     },
+    startDateTime: {
+      type: Date
+    },
+    endDateTime: {
+      type: Date
+    },
+    priority: {
+      type: TaskPriorityType
+    },
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       ref: 'User'
-    }
+    },
+    tags: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Tag'
+      }
+    ]
   },
   {
     timestamps: true

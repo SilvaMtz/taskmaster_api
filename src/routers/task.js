@@ -3,6 +3,7 @@
  */
 const express = require('express');
 const Task = require('../models/task');
+const Tag = require('../models/tag');
 const authenticate = require('../middleware/auth');
 
 const router = express.Router();
@@ -28,38 +29,45 @@ router.post('/tasks', authenticate, async (req, res) => {
 /**
  * GET ALL the user's tasks
  * @method GET
- * @query_params 
- * 	completed: boolean, 
+ * @query_params
+ * 	completed: boolean,
  * 	limit: number,
  * 	page: number,
  * 	sortBy: property:order
  */
 router.get('/tasks', authenticate, async (req, res) => {
-	const match = {};
-	const sortOptions = {};
+  const match = {};
+  const sortOptions = {};
 
-	const page = req.query.page && parseInt(req.query.page);
-	const skip_multiplier = page && page > 0 ? (page - 1) : 0;
+  const page = req.query.page && parseInt(req.query.page);
+  const skip_multiplier = page && page > 0 ? page - 1 : 0;
 
-	if (req.query.completed) {
-		match.completed = req.query.completed === 'true'
-	}
+  if (req.query.completed) {
+    match.completed = req.query.completed === 'true';
+  }
 
-	if (req.query.sortBy) {
-		const sortBy = req.query.sortBy.split(':');
-		sortOptions[sortBy[0]] = sortBy[1] === 'desc' ? -1 : 1;
-	}
+  if (req.query.sortBy) {
+    const sortBy = req.query.sortBy.split(':');
+    sortOptions[sortBy[0]] = sortBy[1] === 'desc' ? -1 : 1;
+  }
 
   try {
-		await req.user.populate({
-			path: 'tasks',
-			match,
-			options: {
-				limit: parseInt(req.query.limit),
-				skip: parseInt(req.query.limit) * skip_multiplier,
-				sort: sortOptions
-			}
-		}).execPopulate();
+    await req.user
+      .populate({
+        path: 'tasks',
+        match,
+        options: {
+          limit: parseInt(req.query.limit),
+          skip: parseInt(req.query.limit) * skip_multiplier,
+          sort: sortOptions
+        },
+        populate: {
+          path: 'tags',
+          model: 'Tag',
+          select: 'name color'
+        }
+      })
+      .execPopulate();
     res.status(200).send(req.user.tasks);
   } catch (e) {
     res.status(500).send(e);
@@ -71,13 +79,22 @@ router.get('/tasks', authenticate, async (req, res) => {
  * @method GET
  */
 router.get('/tasks/:id', authenticate, async (req, res) => {
-	const _id = req.params.id
+  const _id = req.params.id;
   try {
-		const task = await Task.findOne({ _id, owner: req.user._id });
+    const task = await Task.findOne({ _id, owner: req.user._id });
 
     if (!task) {
       return res.status(404).send();
     }
+
+    await task
+      .populate({
+        path: 'tags',
+        model: 'Tag',
+        select: 'color name'
+      })
+      .execPopulate();
+
     res.send(task);
   } catch (e) {
     res.status(500).send();
@@ -99,11 +116,11 @@ router.patch('/tasks/:id', authenticate, async (req, res) => {
     return res.status(400).send({ error: 'Invalid Updates!' });
   }
 
-	const _id = req.params.id;
-	const owner = req.user._id;
+  const _id = req.params.id;
+  const owner = req.user._id;
 
   try {
-		const task = await Task.findOne({ _id, owner })
+    const task = await Task.findOne({ _id, owner });
 
     if (!task) {
       return res.status(404).send();
@@ -123,20 +140,47 @@ router.patch('/tasks/:id', authenticate, async (req, res) => {
  * @method DELETE
  */
 router.delete('/tasks/:id', authenticate, async (req, res) => {
-	const _id = req.params.id;
-	const owner = req.user._id;
+  const _id = req.params.id;
+  const owner = req.user._id;
 
   try {
-		const task = await Task.findOneAndDelete({ _id, owner });
+    const task = await Task.findOneAndDelete({ _id, owner });
 
     if (!task) {
       return res.status(404).send();
     }
 
     res.send(task);
-	} catch (e) {
-		res.status(500).send();
-	}
+  } catch (e) {
+    res.status(500).send();
+  }
+});
+
+router.post('/tasks/:id/tags', authenticate, async (req, res) => {
+  const _id = req.params.id;
+  const owner = req.user._id;
+
+  try {
+    if (!req.body.tag) {
+      return res.status(400).send();
+    }
+
+    const task = await Task.findOne({ _id, owner });
+    const tag = await Tag.findOne({ _id: req.body.tag, owner });
+
+    if (!task || !tag) {
+      return res.status(400).send();
+    }
+
+    if (!task.tags.includes(tag._id)) {
+      task.tags = task.tags.concat(tag._id);
+    }
+
+    task.save();
+    res.send(task);
+  } catch (e) {
+    res.status(400).send();
+  }
 });
 
 module.exports = router;

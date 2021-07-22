@@ -60,6 +60,12 @@ userSchema.virtual('tasks', {
   foreignField: 'owner'
 });
 
+userSchema.virtual('tags', {
+	ref: 'Tag',
+	localField: '_id',
+	foreignField: 'owner'
+});
+
 userSchema.methods.toJSON = function () {
   const user = this;
   const userObject = user.toObject();
